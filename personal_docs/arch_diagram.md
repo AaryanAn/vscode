@@ -11,13 +11,13 @@ flowchart LR
   end
 
   subgraph Runtime["Local AI Runtime"]
-    F[HTTP Client\n(fetch, streaming)]
-    G[(Local Memory\nSQLite/JSONL)]
+    F["HTTP Client<br/>(fetch, streaming)"]
+    G["Local Memory<br/>SQLite/JSONL"]
   end
 
   subgraph Inference["Model Server (local)"]
-    H[Ollama / llama.cpp\nMetal (apple-silicon)]
-    I[GGUF Models\n(quantized)]
+    H["Ollama / llama.cpp<br/>Metal (Apple Silicon)"]
+    I["GGUF Models<br/>(quantized)"]
   end
 
   A <--> D
