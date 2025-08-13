@@ -1,15 +1,15 @@
 # LocalCoder: Fully-Local AI-Enhanced VS Code
 
 ## Goal
-A VS Code fork with an integrated local AI assistant for code improvement, explanation, and refactoring, running entirely on-device using Apple Silicon’s Metal acceleration.
+A standalone VS Code fork (full product) with an integrated local AI assistant for code improvement, explanation, and refactoring, running entirely on-device using Apple Silicon’s Metal acceleration.
 
 ---
 
 ## Motivation
-- No cloud calls, no data leakage
-- Leverage Apple Silicon M-series for local LLM inference
-- Target devs who need privacy + fast context-aware code help
-- Extendable to NVIDIA GPU builds later
+- Primary: affordability (no paid API tokens). All inference runs locally.
+- Secondary: privacy (no cloud calls by default).
+- Leverage Apple Silicon M-series for local LLM inference.
+- Extendable to NVIDIA GPU builds later.
 
 ---
 
@@ -30,18 +30,19 @@ A VS Code fork with an integrated local AI assistant for code improvement, expla
 
 ## Architecture Overview
 
-**Frontend (VS Code fork)**
-- Adds context menu items for inline actions
-- Calls into a new `localcoder` extension host
+**Frontend (Product UI in Workbench)**
+- Adds context menu items for inline actions.
+- New built-in views (sidebar/panel) for session history and settings.
 
-**LocalCoder Extension**
-- Manages prompts, collects context
-- Sends request to local HTTP endpoint (Ollama server)
-- Streams back and applies edits
+**LocalCoder Core (Built-in Service/Module)**
+- Services to manage prompts, context collection, and apply edits.
+- Talks to a local inference runtime via HTTP (Ollama) or native IPC (embedded llama.cpp runner).
+- Streams responses and updates UI incrementally.
 
-**Backend (Local Model Server)**
-- Ollama running models pulled at install/setup
-- Supports `/v1/completions` or `/v1/chat/completions`
+**Backend (Local Model Runtime)**
+- Option A: Ollama running models pulled at install/setup (HTTP API).
+- Option B: Embedded llama.cpp binary invoked by the app (Metal).
+- Supports `/v1/completions` or `/v1/chat/completions` (Ollama), or equivalent for llama.cpp.
 
 See also: `personal_docs/arch_diagram.md` for a high-level diagram.
 
@@ -50,7 +51,7 @@ See also: `personal_docs/arch_diagram.md` for a high-level diagram.
 ## Data/Call Flow (MVP)
 1. User triggers a command (e.g., Improve Selection).
 2. Extension collects context (selection, file path, repo map, recent edits).
-3. Extension calls local server (`http://localhost:11434`) with a templated prompt.
+3. Core service calls the local runtime (`http://localhost:11434` for Ollama, or native runner) with a templated prompt.
 4. Model streams tokens back; UI renders partial output and tooltips.
 5. Optional: persist interaction to local memory (SQLite/JSONL).
 
@@ -72,12 +73,39 @@ Memory needs (Q4_K_M): 7–8B ≈ 4–6 GB, 13–14B ≈ 8–12 GB, 32B ≈ 18�
 ---
 
 ## Implementation Notes (initial)
-- Extension commands: `localcoder.improveSelection`, `localcoder.explainSelection`.
-- Transport: HTTP(S) to `localhost` with streaming (Server-Sent Events or chunked JSON).
-- Apply edits using VS Code `WorkspaceEdit` with proper undo grouping; show preview diff.
-- Settings: server URL, active model, max tokens, temperature, per-language toggles.
+- Commands (built-in): Improve Selection, Explain Selection.
+- Transport: HTTP(S) to `localhost` (Ollama) with streaming (SSE/chunked JSON), or native IPC to embedded llama.cpp runner.
+- Apply edits using `WorkspaceEdit` with proper undo grouping; show preview diff.
+- Settings: server URL (or embedded), active model, max tokens, temperature, per-language toggles.
 - Persistence: lightweight local store (SQLite/JSONL) scoped to workspace; opt-in.
-- Privacy: no telemetry, block network egress except `localhost` (configurable hard gate).
+- Network policy: no telemetry, block network egress except `localhost` by default (configurable).
+
+---
+
+## Productization & Packaging
+- Branding: name, product icons in `resources/`.
+- Default settings and feature flags via `product.json`.
+- First-run onboarding: check/install Ollama or download embedded runner + pull recommended models.
+- Packaged builds for `darwin-arm64` (later add others).
+- Licensing/attribution for bundled models or download prompts.
+
+---
+
+## Model Recommendations (local, affordable)
+- Default code model: Qwen2.5-Coder 7B Instruct (GGUF Q4_K_M) — good quality/speed.
+- Alternate 7–8B: DeepSeek-Coder 6.7B, StarCoder2 7B (Q4_K_M).
+- Higher quality (slower): Qwen2.5-Coder 14B (Q4_K_M).
+- General assistant: Llama 3.1 8B Instruct (Q4_K_M) or Phi-3.5-mini (very fast).
+- Avoid on typical laptops: 22B–32B class (too slow/memory heavy).
+
+Ollama pulls (examples, adjust exact tags):
+```
+ollama pull qwen2.5-coder:7b-instruct
+ollama pull deepseek-coder:6.7b-instruct
+ollama pull starcoder2:7b
+ollama pull llama3.1:8b-instruct
+ollama pull phi3.5:mini
+```
 
 ---
 
